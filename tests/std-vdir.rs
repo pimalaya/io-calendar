@@ -119,7 +119,7 @@ fn std_vdir() {
 
     assert_eq!(calendars, expected_calendars);
 
-    // should create card
+    // should create calendar item
 
     let mut item = CalendarItem {
         id: CalendarItem::new_uuid().to_string(),
@@ -151,14 +151,14 @@ fn std_vdir() {
 
     assert_eq!(items.len(), 1);
 
-    let first_card = items.into_iter().next().unwrap();
+    let first_item = items.into_iter().next().unwrap();
 
     assert_eq!(
-        first_card.to_string(),
+        first_item.to_string(),
         "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nDTSTART:19970714T170000Z\r\nSUMMARY:Test\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
     );
 
-    // should update card
+    // should update calendar item
 
     item.ical = ICalendar::parse("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nDTSTART:19970714T170000Z\r\nSUMMARY:Test2\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n").unwrap();
 
@@ -186,31 +186,17 @@ fn std_vdir() {
 
     assert_eq!(items.len(), 1);
 
-    let card = items.into_iter().next().unwrap();
+    let first_item = items.into_iter().next().unwrap();
 
     assert_eq!(
-        card.to_string(),
+        first_item.to_string(),
         "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nDTSTART:19970714T170000Z\r\nSUMMARY:Test2\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
     );
 
-    // // should read card
-
-    // let mut output = None;
-    // let mut fs = ReadCard::vcard(calendar.path(), "card");
-
-    // let expected_card = loop {
-    //     match fs.resume(output) {
-    //         Ok(card) => break card,
-    //         Err(input) => output = Some(handle(input).unwrap()),
-    //     }
-    // };
-
-    // assert_eq!(card, expected_card);
-
-    // should delete card
+    // should delete calendar item
 
     let mut arg = None;
-    let mut delete = DeleteCalendarItem::new(root, &calendar.id, &card.id);
+    let mut delete = DeleteCalendarItem::new(root, &calendar.id, &first_item.id);
 
     loop {
         match delete.resume(arg) {

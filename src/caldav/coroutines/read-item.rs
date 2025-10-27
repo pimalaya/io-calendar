@@ -1,5 +1,6 @@
 use calcard::icalendar::ICalendar;
 use io_stream::io::StreamIo;
+use io_vdir::constants::ICS;
 
 use crate::{
     caldav::{config::CaldavConfig, request::Request},
@@ -9,28 +10,28 @@ use crate::{
 use super::send::{Empty, Send, SendError, SendOk, SendResult};
 
 #[derive(Debug)]
-pub struct ReadItem {
+pub struct ReadCalendarItem {
     calendar_id: Option<String>,
     id: Option<String>,
     send: Send<Empty>,
 }
 
-impl ReadItem {
+impl ReadCalendarItem {
     const BODY: &'static str = "";
 
     pub fn new(
         config: &CaldavConfig,
         calendar_id: impl AsRef<str>,
-        card_id: impl AsRef<str>,
+        item_id: impl AsRef<str>,
     ) -> Self {
         let calendar_id = calendar_id.as_ref().to_owned();
-        let card_id = card_id.as_ref().to_owned();
-        let path = &format!("/{calendar_id}/{card_id}.vcf");
+        let item_id = item_id.as_ref().to_owned();
+        let path = &format!("/{calendar_id}/{item_id}.{ICS}");
         let request = Request::get(config, path);
         let send = Send::new(request, Self::BODY.as_bytes().to_vec());
 
         Self {
-            id: Some(card_id),
+            id: Some(item_id),
             calendar_id: Some(calendar_id),
             send,
         }

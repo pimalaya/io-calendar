@@ -1,4 +1,5 @@
 use io_stream::io::StreamIo;
+use io_vdir::constants::ICS;
 use serde::Deserialize;
 
 use crate::caldav::{config::CaldavConfig, request::Request, response::StatusResponse};
@@ -14,11 +15,11 @@ impl DeleteCalendarItem {
     pub fn new(
         config: &CaldavConfig,
         calendar_id: impl AsRef<str>,
-        card_id: impl AsRef<str>,
+        item_id: impl AsRef<str>,
     ) -> Self {
         let calendar_id = calendar_id.as_ref();
-        let card_id = card_id.as_ref();
-        let path = &format!("/{calendar_id}/{card_id}.vcf");
+        let item_id = item_id.as_ref();
+        let path = &format!("/{calendar_id}/{item_id}.{ICS}");
         let request = Request::delete(config, path).content_type_xml();
         Self(Send::new(request, Self::BODY.as_bytes().to_vec()))
     }

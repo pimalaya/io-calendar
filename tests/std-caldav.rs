@@ -167,7 +167,7 @@ fn std_caldav() {
     assert!(first_item.contains("UID:abc123"));
     assert!(first_item.contains("SUMMARY:Test"));
 
-    // should update card
+    // should update calendar item
 
     item.ical = ICalendar::parse("BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:abc123\r\nSUMMARY:Test2\r\nEND:VTODO\r\nEND:VCALENDAR\r\n").unwrap();
 
@@ -200,21 +200,7 @@ fn std_caldav() {
     assert!(first_item.contains("UID:abc123"));
     assert!(first_item.contains("SUMMARY:Test2"));
 
-    // // should read card
-
-    // let mut output = None;
-    // let mut fs = ReadCard::vcard(calendar.path(), "card");
-
-    // let expected_card = loop {
-    //     match fs.resume(output) {
-    //         Ok(card) => break card,
-    //         Err(input) => output = Some(handle(input).unwrap()),
-    //     }
-    // };
-
-    // assert_eq!(card, expected_card);
-
-    // should delete card
+    // should delete calendar item
 
     let mut arg = None;
     let mut delete = DeleteCalendarItem::new(&config, &calendar.id, &item.id);

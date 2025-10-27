@@ -14,7 +14,7 @@ use crate::item::CalendarItem;
 
 #[derive(Clone, Debug, Error)]
 pub enum ListCalendarItemsError {
-    #[error("List cards error")]
+    #[error("List calendar items error")]
     ListVdirItems(#[from] ListVdirItemsError),
 }
 
@@ -34,7 +34,7 @@ impl ListCalendarItems {
     }
 
     pub fn resume(&mut self, input: Option<FsIo>) -> ListCalendarItemsResult {
-        let items = loop {
+        let all_items = loop {
             match self.0.resume(input) {
                 ListVdirItemsResult::Ok(items) => break items,
                 ListVdirItemsResult::Err(err) => return ListCalendarItemsResult::Err(err.into()),
@@ -42,9 +42,9 @@ impl ListCalendarItems {
             }
         };
 
-        let mut cards = HashSet::new();
+        let mut items = HashSet::new();
 
-        for item in items {
+        for item in all_items {
             let Some(parent) = item.path.parent() else {
                 continue;
             };
@@ -61,13 +61,13 @@ impl ListCalendarItems {
                 continue;
             };
 
-            cards.insert(CalendarItem {
+            items.insert(CalendarItem {
                 id: id.to_string_lossy().to_string(),
                 calendar_id: calendar_id.to_string_lossy().to_string(),
                 ical,
             });
         }
 
-        ListCalendarItemsResult::Ok(cards)
+        ListCalendarItemsResult::Ok(items)
     }
 }

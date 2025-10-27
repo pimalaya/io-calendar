@@ -2,7 +2,9 @@
   description = "Set of I/O-free Rust coroutines to manage contacts";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+    nixpkgs = {
+      url = "github:nixos/nixpkgs/staging-next";
+    };
     fenix = {
       url = "github:nix-community/fenix/monthly";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -10,7 +12,6 @@
     pimalaya = {
       url = "github:pimalaya/nix";
       flake = false;
-      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 

@@ -1,4 +1,5 @@
 use io_stream::io::StreamIo;
+use io_vdir::constants::ICS;
 
 use crate::{
     caldav::{config::CaldavConfig, request::Request},
@@ -12,8 +13,8 @@ pub struct CreateCalendarItem(Send<Empty>);
 
 impl CreateCalendarItem {
     pub fn new(config: &CaldavConfig, item: CalendarItem) -> Self {
-        let path = format!("/{}/{}.vcf", item.calendar_id, item.id);
-        let request = Request::put(config, path).content_type_vcard();
+        let path = format!("/{}/{}.{ICS}", item.calendar_id, item.id);
+        let request = Request::put(config, path).content_type_ical();
         let body = item.to_string().into_bytes();
         Self(Send::new(request, body))
     }

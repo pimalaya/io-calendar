@@ -86,8 +86,8 @@ impl Request {
         self.content_type("text/xml; charset=utf-8")
     }
 
-    pub fn content_type_vcard(self) -> Self {
-        self.content_type("text/vcard; charset=utf-8")
+    pub fn content_type_ical(self) -> Self {
+        self.content_type("text/calendar; charset=utf-8")
     }
 
     pub fn body(self, body: impl IntoIterator<Item = u8>) -> http::Request<Vec<u8>> {

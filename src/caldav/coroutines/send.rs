@@ -22,7 +22,7 @@ pub enum SendError {
     Response(StatusCode, String),
     #[error("Parse HTTP response XML body error")]
     ParseXmlResponseBody(quick_xml::DeError),
-    #[error("Parse HTTP response vCard body error")]
+    #[error("Parse HTTP response iCalendar body error")]
     ParseIcalResponseBody(calcard::Entry),
 
     #[error(transparent)]

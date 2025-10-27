@@ -12,7 +12,7 @@ use thiserror::Error;
 
 #[derive(Clone, Debug, Error)]
 pub enum DeleteCalendarItemError {
-    #[error("Delete card error")]
+    #[error("Delete calendar item error")]
     DeleteVdirItem(#[from] DeleteVdirItemError),
 }
 

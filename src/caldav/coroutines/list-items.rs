@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use calcard::icalendar::ICalendar;
 use io_stream::io::StreamIo;
+use io_vdir::constants::ICS;
 use log::{debug, trace};
 use serde::Deserialize;
 
@@ -44,7 +45,7 @@ impl ListCalendarItems {
             SendResult::Io(io) => return SendResult::Io(io),
         };
 
-        let mut cards = HashSet::new();
+        let mut items = HashSet::new();
 
         if let Some(responses) = ok.body.responses {
             for response in responses {
@@ -61,13 +62,18 @@ impl ListCalendarItems {
                     continue;
                 };
 
-                let mut parts = response.href.value.trim_end_matches('/').rsplit(['.', '/']);
-                // SAFETY: cards have .vcf extension
-                parts.next().unwrap();
-                // SAFETY: cards belong to calendars
-                let id = parts.next().unwrap();
+                let id = response
+                    .href
+                    .value
+                    .trim_end_matches('/')
+                    .rsplit('/')
+                    .next()
+                    .unwrap() // SAFETY: calendars belong to principal
+                    .trim_end_matches(ICS)
+                    .trim_end_matches('.')
+                    .to_owned();
 
-                let mut card = None;
+                let mut item = None;
 
                 for propstat in propstats {
                     if !propstat.status.is_success() {
@@ -83,7 +89,7 @@ impl ListCalendarItems {
                         continue;
                     };
 
-                    card.replace(CalendarItem {
+                    item.replace(CalendarItem {
                         id: id.to_string(),
                         calendar_id: self.calendar_id.clone(),
                         ical,
@@ -92,11 +98,11 @@ impl ListCalendarItems {
                     break;
                 }
 
-                let Some(card) = card else {
+                let Some(item) = item else {
                     continue;
                 };
 
-                cards.insert(card);
+                items.insert(item);
             }
         };
 
@@ -104,7 +110,7 @@ impl ListCalendarItems {
             request: ok.request,
             response: ok.response,
             keep_alive: ok.keep_alive,
-            body: cards,
+            body: items,
         })
     }
 }
