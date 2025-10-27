@@ -46,7 +46,7 @@ impl HrefProp {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Value {
-    #[serde(rename = "$value")]
+    #[serde(rename = "$value", default)]
     pub value: String,
 }
 

@@ -7,7 +7,7 @@ use crate::caldav::{config::CaldavConfig, request::Request, response::StatusResp
 use super::send::{Send, SendOk, SendResult};
 
 #[derive(Debug)]
-pub struct DeleteCalendarItem(Send<Response>);
+pub struct DeleteCalendarItem(Send<Option<Response>>);
 
 impl DeleteCalendarItem {
     const BODY: &'static str = "";
@@ -31,11 +31,16 @@ impl DeleteCalendarItem {
             SendResult::Io(io) => return SendResult::Io(io),
         };
 
+        let has_no_content = ok.response.status() == 204;
+
         SendResult::Ok(SendOk {
             request: ok.request,
             response: ok.response,
             keep_alive: ok.keep_alive,
-            body: ok.body.response.status.is_success(),
+            body: match ok.body {
+                Some(body) => body.response.status.is_success(),
+                None => has_no_content,
+            },
         })
     }
 }

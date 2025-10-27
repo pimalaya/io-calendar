@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use http::StatusCode;
 use io_http::v1_1::coroutines::send::{SendHttp, SendHttpError, SendHttpResult};
 use io_stream::io::StreamIo;
+use log::trace;
 use serde::{Deserialize, Deserializer};
 use thiserror::Error;
 
@@ -21,7 +22,7 @@ pub enum SendError {
     #[error("HTTP response error {0}: {1}")]
     Response(StatusCode, String),
     #[error("Parse HTTP response XML body error")]
-    ParseXmlResponseBody(quick_xml::DeError),
+    ParseXmlResponseBody(#[source] quick_xml::DeError),
     #[error("Parse HTTP response iCalendar body error")]
     ParseIcalResponseBody(calcard::Entry),
 
@@ -64,6 +65,7 @@ impl<T: for<'a> Deserialize<'a>> Send<T> {
         };
 
         let body = String::from_utf8_lossy(ok.response.body());
+        trace!("{body}");
 
         if !ok.response.status().is_success() {
             let status = ok.response.status();
