@@ -1,8 +1,8 @@
 # I/O Calendar [![Documentation](https://img.shields.io/docsrs/io-calendar)](https://docs.rs/io-calendar/latest/io_calendar) [![Matrix](https://img.shields.io/matrix/pimalaya:matrix.org?color=success&label=chat)](https://matrix.to/#/#pimalaya:matrix.org)
 
-Set of **I/O-free** Rust coroutines to manage contacts, based on [io-fs](https://github.com/pimalaya/io-fs) and [io-stream](https://github.com/pimalaya/io-stream).
+Set of **I/O-free** Rust coroutines to manage calendars, based on [io-fs](https://github.com/pimalaya/io-fs) and [io-stream](https://github.com/pimalaya/io-stream).
 
-This library allows you to manage contacts using an I/O-agnostic approach, based on 3 concepts:
+This library allows you to manage calendars using an I/O-agnostic approach, based on 3 concepts:
 
 ### Coroutine
 
@@ -24,17 +24,31 @@ The loop is the glue between coroutines and runtimes. It makes the coroutine pro
 
 *See complete examples at [./examples](https://github.com/pimalaya/io-calendar/blob/master/examples).*
 
-### TODO
+### List calendars from CalDAV server (sync)
 
 ```rust,ignore
-// TODO
+use io_stream::runtimes::std::handle;
+use io_calendar::caldav::coroutines::{list_calendars::ListCalendars, send::SendResult};
+
+let mut arg = None;
+let mut http = ListCalendars::new(&config);
+
+let calendars = loop {
+    match http.resume(arg.take()) {
+        SendResult::Ok(res) => break res.body,
+        SendResult::Err(err) => panic!("{err}"),
+        SendResult::Io(io) => arg = Some(handle(&mut stream, io).unwrap()),
+    }
+};
+
+println!("calendars: {calendars:#?}");
 ```
 
 ### More examples
 
 Have a look at projects built on the top of this library:
 
-- *TODO*
+- [Calendula](https://github.com/pimalaya/calendula): CLI to manage calendars.
 
 ## Sponsoring
 

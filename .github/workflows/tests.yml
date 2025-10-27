@@ -7,3 +7,5 @@ jobs:
   tests:
     uses: pimalaya/nix/.github/workflows/tests.yml@master
     secrets: inherit
+    with:
+      docker: docker run --rm -d --publish 8001:8001 whynothugo/vdirsyncer-devkit-radicale

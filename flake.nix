@@ -1,5 +1,5 @@
 {
-  description = "Set of I/O-free Rust coroutines to manage contacts";
+  description = "Set of I/O-free Rust coroutines to manage calendars";
 
   inputs = {
     nixpkgs = {

@@ -17,13 +17,13 @@ use io_calendar::{
     },
 };
 use io_fs::runtimes::std::handle;
-use tempdir::TempDir;
+use tempfile::tempdir;
 
 #[test]
 fn std_vdir() {
     env_logger::init();
 
-    let workdir = TempDir::new("test-vdir-std").unwrap();
+    let workdir = tempdir().unwrap();
     let root = workdir.path();
 
     // should list empty calendars
