@@ -150,7 +150,7 @@ fn std_caldav() {
     };
 
     let mut arg = None;
-    let mut list = ListCalendarItems::new(&config, &calendar.id);
+    let mut list = ListCalendarItems::new(&config, &calendar.id, None);
 
     let items = loop {
         match list.resume(arg) {
@@ -183,7 +183,7 @@ fn std_caldav() {
     };
 
     let mut arg = None;
-    let mut list = ListCalendarItems::new(&config, &calendar.id);
+    let mut list = ListCalendarItems::new(&config, &calendar.id, None);
 
     let items = loop {
         match list.resume(arg) {
@@ -214,7 +214,7 @@ fn std_caldav() {
     };
 
     let mut arg = None;
-    let mut list = ListCalendarItems::new(&config, &calendar.id);
+    let mut list = ListCalendarItems::new(&config, &calendar.id, None);
 
     let items = loop {
         match list.resume(arg) {

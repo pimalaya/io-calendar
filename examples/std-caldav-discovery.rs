@@ -108,7 +108,7 @@ fn main() {
     println!("calendars: {calendars:#?}");
 
     let mut arg = None;
-    let mut http = ListCalendarItems::new(&config, calendars.into_iter().next().unwrap().id);
+    let mut http = ListCalendarItems::new(&config, calendars.into_iter().next().unwrap().id, None);
 
     let items = loop {
         match http.resume(arg.take()) {

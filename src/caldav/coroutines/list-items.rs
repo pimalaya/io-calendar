@@ -1,8 +1,7 @@
 use std::collections::HashSet;
 
-use calcard::icalendar::ICalendar;
+use calcard::icalendar::{ICalendar, ICalendarComponentType};
 use io_stream::io::StreamIo;
-use io_vdir::constants::ICS;
 use log::{debug, trace};
 use serde::Deserialize;
 
@@ -24,17 +23,27 @@ pub struct ListCalendarItems {
 }
 
 impl ListCalendarItems {
-    const BODY: &'static str = include_str!("./list-items.xml");
-
-    pub fn new(config: &CaldavConfig, calendar_id: impl AsRef<str>) -> Self {
+    pub fn new(
+        config: &CaldavConfig,
+        calendar_id: impl AsRef<str>,
+        filter: Option<ICalendarComponentType>,
+    ) -> Self {
         let calendar_id = calendar_id.as_ref().to_owned();
+
         let request = Request::report(config, &calendar_id)
             .content_type_xml()
             .depth(1);
 
+        let filter = match filter {
+            Some(filter) => format!("<C:comp-filter name=\"{}\" />", filter.as_str()),
+            None => String::new(),
+        };
+
+        let body = format!(include_str!("./list-items.xml"), filter);
+
         Self {
             calendar_id,
-            send: Send::new(request, Self::BODY.as_bytes().to_vec()),
+            send: Send::new(request, body.as_bytes().to_vec()),
         }
     }
 
@@ -69,8 +78,7 @@ impl ListCalendarItems {
                     .rsplit('/')
                     .next()
                     .unwrap() // SAFETY: calendars belong to principal
-                    .trim_end_matches(ICS)
-                    .trim_end_matches('.')
+                    .trim_end_matches(".ics")
                     .to_owned();
 
                 let mut item = None;

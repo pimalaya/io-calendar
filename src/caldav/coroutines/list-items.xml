@@ -4,6 +4,8 @@
     <C:calendar-data />
   </prop>
   <C:filter>
-    <C:comp-filter name="VCALENDAR" />
+    <C:comp-filter name="VCALENDAR">
+      {}
+    </C:comp-filter>
   </C:filter>
 </C:calendar-query>
