@@ -1,6 +1,5 @@
 use calcard::icalendar::ICalendar;
 use io_stream::io::StreamIo;
-use io_vdir::constants::ICS;
 
 use crate::{
     caldav::{config::CaldavConfig, request::Request},
@@ -26,7 +25,7 @@ impl ReadCalendarItem {
     ) -> Self {
         let calendar_id = calendar_id.as_ref().to_owned();
         let item_id = item_id.as_ref().to_owned();
-        let path = &format!("/{calendar_id}/{item_id}.{ICS}");
+        let path = &format!("/{calendar_id}/{item_id}.ics");
         let request = Request::get(config, path);
         let send = Send::new(request, Self::BODY.as_bytes().to_vec());
 
