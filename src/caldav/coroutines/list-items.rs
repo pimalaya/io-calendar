@@ -16,6 +16,15 @@ use crate::{
 
 use super::send::{Send, SendOk, SendResult};
 
+/// A CalDAV time-range filter (RFC 4791 §9.9).
+///
+/// Start and end are UTC timestamps in iCalendar format: `YYYYMMDDTHHMMSSZ`.
+#[derive(Clone, Debug)]
+pub struct TimeRange {
+    pub start: String,
+    pub end: String,
+}
+
 #[derive(Debug)]
 pub struct ListCalendarItems {
     calendar_id: String,
@@ -28,15 +37,32 @@ impl ListCalendarItems {
         calendar_id: impl AsRef<str>,
         filter: Option<ICalendarComponentType>,
     ) -> Self {
+        Self::with_time_range(config, calendar_id, filter, None)
+    }
+
+    pub fn with_time_range(
+        config: &CaldavConfig,
+        calendar_id: impl AsRef<str>,
+        filter: Option<ICalendarComponentType>,
+        time_range: Option<&TimeRange>,
+    ) -> Self {
         let calendar_id = calendar_id.as_ref().to_owned();
 
         let request = Request::report(config, &calendar_id)
             .content_type_xml()
             .depth(1);
 
-        let filter = match filter {
-            Some(filter) => format!("<C:comp-filter name=\"{}\" />", filter.as_str()),
-            None => String::new(),
+        let filter = match (filter, time_range) {
+            (Some(f), Some(tr)) => format!(
+                "<C:comp-filter name=\"{}\">\
+                   <C:time-range start=\"{}\" end=\"{}\" />\
+                 </C:comp-filter>",
+                f.as_str(),
+                tr.start,
+                tr.end,
+            ),
+            (Some(f), None) => format!("<C:comp-filter name=\"{}\" />", f.as_str()),
+            (None, _) => String::new(),
         };
 
         let body = format!(include_str!("./list-items.xml"), filter);
