@@ -18,11 +18,14 @@ use super::send::{Send, SendOk, SendResult};
 
 /// A CalDAV time-range filter (RFC 4791 §9.9).
 ///
-/// Start and end are UTC timestamps in iCalendar format: `YYYYMMDDTHHMMSSZ`.
+/// Both fields are optional per the RFC (`#IMPLIED`). An open-ended range
+/// omits the missing bound, letting the server handle it natively.
+///
+/// Values are UTC timestamps in iCalendar format: `YYYYMMDDTHHMMSSZ`.
 #[derive(Clone, Debug)]
 pub struct TimeRange {
-    pub start: String,
-    pub end: String,
+    pub start: Option<String>,
+    pub end: Option<String>,
 }
 
 #[derive(Debug)]
@@ -53,16 +56,28 @@ impl ListCalendarItems {
             .depth(1);
 
         let filter = match (filter, time_range) {
-            (Some(f), Some(tr)) => format!(
-                "<C:comp-filter name=\"{}\">\
-                   <C:time-range start=\"{}\" end=\"{}\" />\
-                 </C:comp-filter>",
-                f.as_str(),
-                tr.start,
-                tr.end,
-            ),
+            (Some(f), Some(tr)) => {
+                let mut attrs = String::new();
+                if let Some(s) = &tr.start {
+                    attrs.push_str(&format!(" start=\"{s}\""));
+                }
+                if let Some(e) = &tr.end {
+                    attrs.push_str(&format!(" end=\"{e}\""));
+                }
+                format!(
+                    "<C:comp-filter name=\"{}\">\
+                       <C:time-range{} />\
+                     </C:comp-filter>",
+                    f.as_str(),
+                    attrs,
+                )
+            }
             (Some(f), None) => format!("<C:comp-filter name=\"{}\" />", f.as_str()),
-            (None, _) => String::new(),
+            (None, Some(_)) => {
+                debug!("time_range ignored: a comp-filter is required for time-range filtering");
+                String::new()
+            }
+            (None, None) => String::new(),
         };
 
         let body = format!(include_str!("./list-items.xml"), filter);
