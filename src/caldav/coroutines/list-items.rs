@@ -24,8 +24,47 @@ use super::send::{Send, SendOk, SendResult};
 /// Values are UTC timestamps in iCalendar format: `YYYYMMDDTHHMMSSZ`.
 #[derive(Clone, Debug)]
 pub struct TimeRange {
-    pub start: Option<String>,
-    pub end: Option<String>,
+    start: Option<String>,
+    end: Option<String>,
+}
+
+impl TimeRange {
+    /// Create a new time-range filter.
+    ///
+    /// Values must be UTC timestamps in iCalendar format (`YYYYMMDDTHHMMSSZ`).
+    /// Returns `None` if a value doesn't match the expected format.
+    pub fn new(start: Option<&str>, end: Option<&str>) -> Option<Self> {
+        if let Some(s) = start {
+            if !Self::is_valid_timestamp(s) {
+                return None;
+            }
+        }
+        if let Some(e) = end {
+            if !Self::is_valid_timestamp(e) {
+                return None;
+            }
+        }
+        Some(Self {
+            start: start.map(String::from),
+            end: end.map(String::from),
+        })
+    }
+
+    fn is_valid_timestamp(s: &str) -> bool {
+        s.len() == 16
+            && s.as_bytes()[8] == b'T'
+            && s.as_bytes()[15] == b'Z'
+            && s[..8].bytes().all(|b| b.is_ascii_digit())
+            && s[9..15].bytes().all(|b| b.is_ascii_digit())
+    }
+
+    pub fn start(&self) -> Option<&str> {
+        self.start.as_deref()
+    }
+
+    pub fn end(&self) -> Option<&str> {
+        self.end.as_deref()
+    }
 }
 
 #[derive(Debug)]
@@ -58,10 +97,10 @@ impl ListCalendarItems {
         let filter = match (filter, time_range) {
             (Some(f), Some(tr)) => {
                 let mut attrs = String::new();
-                if let Some(s) = &tr.start {
+                if let Some(s) = tr.start() {
                     attrs.push_str(&format!(" start=\"{s}\""));
                 }
-                if let Some(e) = &tr.end {
+                if let Some(e) = tr.end() {
                     attrs.push_str(&format!(" end=\"{e}\""));
                 }
                 format!(
