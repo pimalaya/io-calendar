@@ -31,9 +31,15 @@ pub struct TimeRange {
 impl TimeRange {
     /// Create a new time-range filter.
     ///
+    /// At least one of `start` or `end` must be provided (RFC 4791 §9.9).
     /// Values must be UTC timestamps in iCalendar format (`YYYYMMDDTHHMMSSZ`).
-    /// Returns `None` if a value doesn't match the expected format.
+    /// Returns `None` if both are absent or a value doesn't match the expected
+    /// format. Date digits are validated for basic range correctness (month
+    /// 01-12, day 01-31) but not calendar validity (e.g. Feb 30 is accepted).
     pub fn new(start: Option<&str>, end: Option<&str>) -> Option<Self> {
+        if start.is_none() && end.is_none() {
+            return None;
+        }
         if let Some(s) = start {
             if !Self::is_valid_timestamp(s) {
                 return None;
@@ -50,12 +56,26 @@ impl TimeRange {
         })
     }
 
+    // Validates structural format and basic date ranges.
+    // The character set (digits, T, Z only) also guards against XML injection
+    // since these values are interpolated into XML via format!().
     fn is_valid_timestamp(s: &str) -> bool {
-        s.len() == 16
-            && s.as_bytes()[8] == b'T'
-            && s.as_bytes()[15] == b'Z'
-            && s[..8].bytes().all(|b| b.is_ascii_digit())
-            && s[9..15].bytes().all(|b| b.is_ascii_digit())
+        if s.len() != 16 || s.as_bytes()[8] != b'T' || s.as_bytes()[15] != b'Z' {
+            return false;
+        }
+        if !s[..8].bytes().all(|b| b.is_ascii_digit()) || !s[9..15].bytes().all(|b| b.is_ascii_digit()) {
+            return false;
+        }
+        let month: u32 = s[4..6].parse().unwrap_or(0);
+        let day: u32 = s[6..8].parse().unwrap_or(0);
+        let hour: u32 = s[9..11].parse().unwrap_or(99);
+        let min: u32 = s[11..13].parse().unwrap_or(99);
+        let sec: u32 = s[13..15].parse().unwrap_or(99);
+        (1..=12).contains(&month)
+            && (1..=31).contains(&day)
+            && hour <= 23
+            && min <= 59
+            && sec <= 59
     }
 
     pub fn start(&self) -> Option<&str> {
@@ -207,4 +227,65 @@ impl ListCalendarItems {
 #[serde(rename_all = "kebab-case")]
 pub struct Prop {
     pub calendar_data: Option<Value>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn both_none_returns_none() {
+        assert!(TimeRange::new(None, None).is_none());
+    }
+
+    #[test]
+    fn start_only() {
+        let tr = TimeRange::new(Some("20260214T000000Z"), None).unwrap();
+        assert_eq!(tr.start(), Some("20260214T000000Z"));
+        assert_eq!(tr.end(), None);
+    }
+
+    #[test]
+    fn end_only() {
+        let tr = TimeRange::new(None, Some("20260221T000000Z")).unwrap();
+        assert_eq!(tr.start(), None);
+        assert_eq!(tr.end(), Some("20260221T000000Z"));
+    }
+
+    #[test]
+    fn both_present() {
+        let tr = TimeRange::new(Some("20260214T000000Z"), Some("20260221T000000Z")).unwrap();
+        assert_eq!(tr.start(), Some("20260214T000000Z"));
+        assert_eq!(tr.end(), Some("20260221T000000Z"));
+    }
+
+    #[test]
+    fn rejects_invalid_format() {
+        assert!(TimeRange::new(Some("not-a-date"), None).is_none());
+        assert!(TimeRange::new(Some("2026-02-14T00:00:00Z"), None).is_none());
+        assert!(TimeRange::new(Some("20260214T000000"), None).is_none()); // missing Z
+        assert!(TimeRange::new(Some("20260214 000000Z"), None).is_none()); // space not T
+    }
+
+    #[test]
+    fn rejects_invalid_date_ranges() {
+        assert!(TimeRange::new(Some("20261301T000000Z"), None).is_none()); // month 13
+        assert!(TimeRange::new(Some("20260200T000000Z"), None).is_none()); // day 0
+        assert!(TimeRange::new(Some("20260232T000000Z"), None).is_none()); // day 32
+        assert!(TimeRange::new(Some("20260214T250000Z"), None).is_none()); // hour 25
+        assert!(TimeRange::new(Some("20260214T006000Z"), None).is_none()); // min 60
+        assert!(TimeRange::new(Some("20260214T000060Z"), None).is_none()); // sec 60
+    }
+
+    #[test]
+    fn accepts_boundary_values() {
+        assert!(TimeRange::new(Some("20260101T000000Z"), None).is_some()); // min valid
+        assert!(TimeRange::new(Some("20261231T235959Z"), None).is_some()); // max valid
+    }
+
+    #[test]
+    fn rejects_xml_injection() {
+        assert!(TimeRange::new(Some("20260214T00000\"Z"), None).is_none());
+        assert!(TimeRange::new(Some("<script>alert</s"), None).is_none());
+    }
 }
