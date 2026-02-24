@@ -21,7 +21,7 @@ impl CalendarHomeSet {
     const BODY: &'static str = include_str!("./calendar-home-set.xml");
 
     pub fn new(config: &CaldavConfig) -> Self {
-        let request = Request::propfind(config, "/");
+        let request = Request::propfind(config, "/").content_type_xml();
         let body = Self::BODY.as_bytes().into_iter().cloned();
         Self(FollowRedirects::new(request, body))
     }
