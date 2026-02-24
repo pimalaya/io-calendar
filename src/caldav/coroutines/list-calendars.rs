@@ -18,7 +18,7 @@ impl ListCalendars {
     const BODY: &'static str = include_str!("./list-calendars.xml");
 
     pub fn new(config: &CaldavConfig) -> Self {
-        let request = Request::propfind(config, "").depth(1);
+        let request = Request::propfind(config, "").content_type_xml().depth(1);
         let body = Self::BODY.as_bytes().into_iter().cloned();
         Self(Send::new(request, body))
     }
