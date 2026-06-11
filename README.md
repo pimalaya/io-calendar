@@ -1,64 +1,173 @@
-# I/O Calendar [![Documentation](https://img.shields.io/docsrs/io-calendar)](https://docs.rs/io-calendar/latest/io_calendar) [![Matrix](https://img.shields.io/matrix/pimalaya:matrix.org?color=success&label=chat)](https://matrix.to/#/#pimalaya:matrix.org)
+# I/O Calendar [![Documentation](https://img.shields.io/docsrs/io-calendar?style=flat&logo=docs.rs&logoColor=white)](https://docs.rs/io-calendar/latest/io_calendar) [![Matrix](https://img.shields.io/badge/chat-%23pimalaya-blue?style=flat&logo=matrix&logoColor=white)](https://matrix.to/#/#pimalaya:matrix.org) [![Mastodon](https://img.shields.io/badge/news-%40pimalaya-blue?style=flat&logo=mastodon&logoColor=white)](https://fosstodon.org/@pimalaya)
 
-Set of **I/O-free** Rust coroutines to manage calendars, based on [io-fs](https://github.com/pimalaya/io-fs) and [io-stream](https://github.com/pimalaya/io-stream).
+Calendar client library, written in Rust.
 
-This library allows you to manage calendars using an I/O-agnostic approach, based on 3 concepts:
+This library is composed of 2 feature-gated layers:
 
-### Coroutine
+- Low-level **I/O-free** coroutines: these `no_std`-compatible state machines wrap the underlying [io-vdir] and [io-webdav] coroutines and surface a shared least-common-denominator type on completion
+- Mid-level **std client**: a standard, blocking unified client that dispatches the shared API to the single active backend
 
-A coroutine is an *I/O-free*, *resumable* and *composable* state machine that **emits I/O requests**. A coroutine is considered *terminated* when it does not emit I/O requests anymore.
+## Table of contents
 
-*See available coroutines at [./src/coroutines](https://github.com/pimalaya/io-calendar/tree/master/src/coroutines).*
+- [Features](#features)
+- [Backend coverage](#backend-coverage)
+- [Usage](#usage)
+  - [Coroutines](#coroutines)
+  - [Std client](#std-client)
+- [Examples](#examples)
+- [AI disclosure](#ai-disclosure)
+- [License](#license)
+- [Social](#social)
+- [Sponsoring](#sponsoring)
 
-### Runtime
+## Features
 
-A runtime contains all the I/O logic, and is responsible for **processing I/O requests** emitted by coroutines.
+- **Shared LCD types**: `Calendar` and `CalendarItem` that fit both Vdir and CalDAV.
+- **I/O-free** coroutines: `no_std` state machines per (backend, operation), wrapping the underlying io-vdir / io-webdav coroutine and producing a shared type on completion.
+- **Unified std client** (`client` feature): blocking dispatcher; since a calendar account speaks one protocol at a time, `CalendarClientStd` is an enum over the single active backend (Vdir or Webdav) rather than a multi-slot bag.
+- **TLS** for the CalDAV backend (gated by the same `rustls-ring` / `rustls-aws` / `native-tls` features forwarded to io-webdav).
+- Optional **iCalendar parsing** (`parser` feature, calcard-backed) and **serde** round-trip on every shared type (`serde` feature).
 
-*See available runtimes at [io-fs](https://github.com/pimalaya/io-fs/tree/master/src/runtimes) and [io-stream](https://github.com/pimalaya/io-stream/tree/master/src/runtimes).*
+> [!TIP]
+> I/O Calendar is written in [Rust](https://www.rust-lang.org/) and uses [cargo features](https://doc.rust-lang.org/cargo/reference/features.html) to gate backend support. The default feature set is declared in [Cargo.toml](./Cargo.toml) or on [docs.rs](https://docs.rs/crate/io-calendar/latest/features).
 
-### Loop
+[io-vdir]: https://github.com/pimalaya/io-vdir
+[io-webdav]: https://github.com/pimalaya/io-webdav
 
-The loop is the glue between coroutines and runtimes. It makes the coroutine progress while allowing runtime to process I/O.
+## Backend coverage
+
+| Operation          | Vdir | Webdav |
+|--------------------|:----:|:------:|
+| `list_calendars`   |  yes |   yes  |
+| `create_calendar`  |  yes |   yes  |
+| `update_calendar`  |  yes |   yes  |
+| `delete_calendar`  |  yes |   yes  |
+| `list_items`       |  yes |   yes  |
+| `get_item`         |  yes |   yes  |
+| `create_item`      |  yes |   yes  |
+| `update_item`      |  yes |   yes  |
+| `delete_item`      |  yes |   yes  |
+
+## Usage
+
+I/O Calendar can be consumed two ways, depending on how much of the I/O stack you want to own. Each mode is gated by cargo features.
+
+Whichever mode you pick, every shared-API coroutine implements the backend trait of the protocol it targets (`VdirCoroutine` for the local backend, `WebdavCoroutine` for CalDAV). The `resume(...)` method returns the matching `<Backend>CoroutineState<Yield, Return>` with two variants:
+
+- `Yielded(Y)`: intermediate. `Y` is the backend's standard yield (`WantsDirRead` / `WantsFileCreate` / `WantsRename` etc. for the Vdir filesystem backend, `WantsRead` / `WantsWrite` for the CalDAV network backend). The driver services the request and feeds back the matching reply on the next `resume`.
+- `Complete(R)`: terminal. By convention `R = Result<Output, Error>` carrying the operation's final value typed against the shared `Calendar` / `CalendarItem`.
+
+The std client owns the resume loop for you; the I/O-free mode hands it back so you can drive the same coroutine under any blocking, async, or fuzz harness.
+
+### Coroutines
+
+No `client` feature required: every wrapper lives under `<domain>::<protocol>::<op>` (for example `calendar::vdir::list::VdirCalendarList`, `item::webdav::get::WebdavCalendarItemGet`) and is built straight from the shared inputs. You own the loop and the syscalls; the library only produces operations and consumes their results.
+
+Create a Vdir calendar against a blocking caller (the same shape works under async or in-memory replay):
+
+```rust,no_run
+use std::fs;
+
+use io_calendar::calendar::vdir::create::VdirCalendarCreate;
+use io_vdir::{coroutine::*, path::VdirPath};
+
+let root = VdirPath::new("/path/to/vdir");
+let mut coroutine = VdirCalendarCreate::new(&root, "personal", "Personal", None, None).unwrap();
+let mut arg: Option<VdirReply> = None;
+
+loop {
+    match coroutine.resume(arg.take()) {
+        VdirCoroutineState::Complete(Ok(())) => break,
+        VdirCoroutineState::Complete(Err(err)) => panic!("{err}"),
+        VdirCoroutineState::Yielded(VdirYield::WantsDirCreate(paths)) => {
+            for path in paths {
+                fs::create_dir_all(path.as_str()).unwrap();
+            }
+            arg = Some(VdirReply::DirCreate);
+        }
+        VdirCoroutineState::Yielded(VdirYield::WantsFileCreate(files)) => {
+            for (path, bytes) in files {
+                fs::write(path.as_str(), &bytes).unwrap();
+            }
+            arg = Some(VdirReply::FileCreate);
+        }
+        VdirCoroutineState::Yielded(other) => unreachable!("unexpected {other:?}"),
+    }
+}
+
+println!("created calendar personal");
+```
+
+The CalDAV backend follows the same pattern but yields `WantsRead` / `WantsWrite(Vec<u8>)` instead; see [io-webdav] for the TCP / TLS / discovery setup that connects the stream before the wrapper coroutine runs.
+
+### Std client
+
+Enable the `client` feature and at least one backend. A calendar account speaks one protocol at a time, so `CalendarClientStd` is an enum over the single active backend; build one from a per-backend client (`VdirClient`, `WebdavClientStd`) via `From`, then call the shared API.
+
+```toml,ignore
+[dependencies]
+io-calendar = { version = "0.0.3", features = ["client", "vdir"] }
+```
+
+```rust,no_run
+use io_calendar::{client::CalendarClientStd, vdir::client::VdirClient};
+
+let mut client = CalendarClientStd::from(VdirClient::new("/path/to/vdir"));
+
+for calendar in client.list_calendars().unwrap() {
+    println!("{}: {}", calendar.id, calendar.name);
+}
+```
+
+The vdir backend runs against the local filesystem; the webdav backend drives its coroutines against the connected stream and reuses the inner client's CalDAV discovery cache.
 
 ## Examples
 
-*See complete examples at [./examples](https://github.com/pimalaya/io-calendar/blob/master/examples).*
+Have a look at real-world projects built on top of this library:
 
-### List calendars from CalDAV server (sync)
+- [Calendula](https://github.com/pimalaya/calendula): CLI to manage calendars
 
-```rust,ignore
-use io_stream::runtimes::std::handle;
-use io_calendar::caldav::coroutines::{list_calendars::ListCalendars, send::SendResult};
+## AI disclosure
 
-let mut arg = None;
-let mut http = ListCalendars::new(&config);
+This project is developed with AI assistance. This section documents how, so users and downstream packagers can make informed decisions.
 
-let calendars = loop {
-    match http.resume(arg.take()) {
-        SendResult::Ok(res) => break res.body,
-        SendResult::Err(err) => panic!("{err}"),
-        SendResult::Io(io) => arg = Some(handle(&mut stream, io).unwrap()),
-    }
-};
+- **Tools**: Claude Code (Anthropic), Opus 4.8, invoked locally with a persistent project-scoped memory and a small set of repo-specific rules.
 
-println!("calendars: {calendars:#?}");
-```
+- **Used for**: Refactors, mechanical multi-file edits, boilerplate (feature gates, error enums, derive macros, trait impls), test scaffolding, doc polish, exploratory design conversations.
 
-### More examples
+- **Not used for**: Engineering, critical code, git manipulation (commit, merge, rebase…), real-world tests.
 
-Have a look at projects built on the top of this library:
+- **Verification**: Every AI-assisted change is read, compiled, tested, and formatted before commit (`nix develop --command cargo check / cargo test / cargo fmt`). Behavioural correctness is verified against the relevant RFC or upstream spec, not assumed from the model output. Tests are never adjusted to fit AI-generated code; the code is adjusted to fit correct behaviour.
 
-- [Calendula](https://github.com/pimalaya/calendula): CLI to manage calendars.
+- **Limitations**: AI models occasionally produce code that compiles and passes tests but is subtly wrong: off-by-one errors, missed edge cases, plausible but nonexistent APIs, stale RFC references. The verification workflow catches most of this; it does not catch all of it. Bug reports are welcome and taken seriously.
+
+- **Last reviewed**: 11/06/2026
+
+## License
+
+This project is licensed under either of:
+
+- [MIT license](LICENSE-MIT)
+- [Apache License, Version 2.0](LICENSE-APACHE)
+
+at your option.
+
+## Social
+
+- Chat on [Matrix](https://matrix.to/#/#pimalaya:matrix.org)
+- News on [Mastodon](https://fosstodon.org/@pimalaya) or [RSS](https://fosstodon.org/@pimalaya.rss)
+- Mail at [pimalaya.org@posteo.net](mailto:pimalaya.org@posteo.net)
 
 ## Sponsoring
 
 [![nlnet](https://nlnet.nl/logo/banner-160x60.png)](https://nlnet.nl/)
 
-Special thanks to the [NLnet foundation](https://nlnet.nl/) and the [European Commission](https://www.ngi.eu/) that helped the project to receive financial support from various programs:
+Special thanks to the [NLnet foundation](https://nlnet.nl/) and the [European Commission](https://www.ngi.eu/) that have been financially supporting the project for years:
 
-- [NGI Assure](https://nlnet.nl/project/Himalaya/) in 2022
-- [NGI Zero Entrust](https://nlnet.nl/project/Pimalaya/) in 2023
-- [NGI Zero Core](https://nlnet.nl/project/Pimalaya-PIM/) in 2024 *(still ongoing)*
+- 2022 → 2023: [NGI Assure](https://nlnet.nl/project/Himalaya/)
+- 2023 → 2024: [NGI Zero Entrust](https://nlnet.nl/project/Pimalaya/)
+- 2024 → 2026: [NGI Zero Core](https://nlnet.nl/project/Pimalaya-PIM/)
+- *2027 in preparation…*
 
 If you appreciate the project, feel free to donate using one of the following providers:
 

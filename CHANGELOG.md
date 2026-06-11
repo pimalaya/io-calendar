@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.3] - Unreleased
+
+### Added
+
+- Added CalendarItem::as_ical() helper behind the parser feature, re-exporting the calcard module.
+
+### Changed
+
+- Refactored the crate onto the io-vdir and io-webdav backends behind a unified CalendarClientStd dispatcher; mirrors the io-email shared client. Dropped the inline caldav/ tree, io-fs, io-stream, quick-xml, secrecy, base64, memchr, http, and io-http direct dependencies.
+- Reshaped CalendarClientStd into an enum over the single active backend (Vdir or Webdav) instead of a multi-slot struct, since a calendar account speaks one protocol at a time; mirrors io-email without its multi-backend bag of optional slots.
+- Gave every shared-API method its own io-vdir / io-webdav wrapping coroutine, reusing the backend crates' coroutine traits; io-calendar now shares only types and small utils, exactly like io-email.
+- Restructured the crate into calendar/ and item/ domain modules (each with the shared type plus per-protocol coroutines) plus per-protocol vdir/ and webdav/ clients, mirroring io-email's module layout.
+- Made the Webdav backend pump its coroutines against the inner client's public stream, reusing its discovery cache.
+- Switched to no_std core with extern crate std gated on the client feature; backend modules live behind vdir and webdav features that wire io-vdir/client and io-webdav/client respectively.
+- Renamed the item types to CalendarItem and CalendarItemKind for domain-prefixed, collision-free names; the collection types stay Calendar and CalendarDiff.
+- Relicensed under MIT OR Apache-2.0, bumped edition to 2024 with rust-version 1.87.
+
 ## [0.0.1] - 2025-10-27
 
 ### Added
