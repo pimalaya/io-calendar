@@ -31,7 +31,7 @@ use crate::{
         },
     },
     item::{
-        CalendarItem,
+        CalendarItem, TimeRange,
         webdav::{
             create::WebdavCalendarItemCreate, delete::WebdavCalendarItemDelete,
             get::WebdavCalendarItemGet, list::WebdavCalendarItemList,
@@ -230,11 +230,15 @@ impl WebdavClientStd {
     }
 
     /// Lists items inside `calendar_id`, applying 1-indexed pagination.
+    ///
+    /// When `time_range` is set, the server query is constrained to
+    /// VEVENT components overlapping the range.
     pub fn list_items(
         &mut self,
         calendar_id: &str,
         page: Option<u32>,
         page_size: Option<u32>,
+        time_range: Option<&TimeRange>,
     ) -> Result<Vec<CalendarItem>, WebdavClientError> {
         self.validate_calendar(calendar_id)?;
 
@@ -249,6 +253,7 @@ impl WebdavClientStd {
             calendar_id,
             page,
             page_size,
+            time_range,
         );
         self.run(coroutine)
     }

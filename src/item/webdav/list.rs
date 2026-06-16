@@ -1,17 +1,20 @@
 //! WebDAV item list coroutine wrapping
 //! [`io_webdav::rfc4791::item::list::ListItems`].
 //!
-//! Lists every item kind (the `comp_filter` is empty); per-kind
-//! filtering belongs to protocol-specific commands, not the shared API.
+//! Lists every item kind (the `comp_filter` is empty) unless a
+//! [`TimeRange`] is given, in which case the query is constrained to
+//! VEVENT components overlapping the range (the only kind a time-range
+//! filter applies to in the shared API).
 //!
 //! # Example
 //!
 //! ```rust,ignore
 //! // Driven through the shared-API method on the WebDAV client.
-//! let items = client.list_items("personal", None, None)?;
+//! let items = client.list_items("personal", None, None, None)?;
 //! ```
 
 use alloc::{
+    format,
     string::{String, ToString},
     vec::Vec,
 };
@@ -25,7 +28,7 @@ use log::trace;
 use url::Url;
 
 use crate::{
-    item::CalendarItem,
+    item::{CalendarItem, TimeRange},
     webdav::convert::{item_from_entry, paginate},
 };
 
@@ -45,6 +48,10 @@ impl WebdavCalendarItemList {
     /// Builds the coroutine listing items in the collection at
     /// `calendar_path` (the calendar `calendar_id`), applying 1-indexed
     /// pagination on completion.
+    ///
+    /// When `time_range` is set, the server query is constrained to
+    /// VEVENT components overlapping the range.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         base_url: &Url,
         auth: &WebdavAuth,
@@ -53,13 +60,29 @@ impl WebdavCalendarItemList {
         calendar_id: &str,
         page: Option<u32>,
         page_size: Option<u32>,
+        time_range: Option<&TimeRange>,
     ) -> Self {
         trace!("prepare webdav item list");
+
+        let comp_filter = match time_range {
+            None => String::new(),
+            Some(range) => {
+                let mut attrs = String::new();
+                if let Some(start) = range.start() {
+                    attrs.push_str(&format!(" start=\"{start}\""));
+                }
+                if let Some(end) = range.end() {
+                    attrs.push_str(&format!(" end=\"{end}\""));
+                }
+                format!("<C:comp-filter name=\"VEVENT\"><C:time-range{attrs} /></C:comp-filter>")
+            }
+        };
+
         Self {
             calendar_id: calendar_id.to_string(),
             page,
             page_size,
-            inner: ListItems::new(base_url, auth, user_agent, calendar_path, ""),
+            inner: ListItems::new(base_url, auth, user_agent, calendar_path, &comp_filter),
         }
     }
 }

@@ -30,7 +30,7 @@ use crate::{
         },
     },
     item::{
-        CalendarItem,
+        CalendarItem, TimeRange,
         vdir::{
             create::{VdirCalendarItemCreate, VdirCalendarItemCreateError},
             delete::{VdirCalendarItemDelete, VdirCalendarItemDeleteError},
@@ -280,20 +280,27 @@ impl VdirClient {
     }
 
     /// Lists items inside `calendar_id`, applying 1-indexed pagination.
+    ///
+    /// When `time_range` is set, the fetched items are filtered
+    /// client-side, keeping only VEVENTs whose start date falls in the
+    /// range (the filesystem backend has no server-side query). Needs
+    /// the `parser` feature; without it the range is ignored.
     pub fn list_items(
         &self,
         calendar_id: &str,
         page: Option<u32>,
         page_size: Option<u32>,
+        time_range: Option<&TimeRange>,
     ) -> Result<Vec<CalendarItem>, VdirClientError> {
         self.validate_calendar(calendar_id)?;
         let path = calendar_path(self.inner.root(), calendar_id);
-        self.run(VdirCalendarItemList::new(
+        let items = self.run(VdirCalendarItemList::new(
             path,
             calendar_id,
             page,
             page_size,
-        ))
+        ))?;
+        Ok(filter_time_range(items, time_range))
     }
 
     /// Fetches `item_id` from `calendar_id`.
@@ -374,4 +381,86 @@ fn normalize_path(path: std::path::PathBuf) -> VdirPath {
     #[cfg(windows)]
     let s = s.replace('\\', "/");
     VdirPath::new(s)
+}
+
+/// Keeps only the items matching `time_range`, when set: VEVENTs whose
+/// `DTSTART` date is within `[start, end)` at day precision.
+#[cfg(feature = "parser")]
+fn filter_time_range(
+    items: Vec<CalendarItem>,
+    time_range: Option<&TimeRange>,
+) -> Vec<CalendarItem> {
+    let Some(range) = time_range else {
+        return items;
+    };
+
+    items
+        .into_iter()
+        .filter(|item| event_in_range(item, range))
+        .collect()
+}
+
+/// Without the `parser` feature the items cannot be inspected, so the
+/// range is ignored and every fetched item is returned.
+#[cfg(not(feature = "parser"))]
+fn filter_time_range(
+    items: Vec<CalendarItem>,
+    time_range: Option<&TimeRange>,
+) -> Vec<CalendarItem> {
+    if time_range.is_some() {
+        trace!("vdir time-range filter ignored: parser feature is disabled");
+    }
+    items
+}
+
+/// Whether `item`'s first VEVENT carries a `DTSTART` date inside
+/// `range` (inclusive lower bound, exclusive upper bound, day
+/// precision). Items without a parseable VEVENT start are dropped.
+#[cfg(feature = "parser")]
+fn event_in_range(item: &CalendarItem, range: &TimeRange) -> bool {
+    use alloc::format;
+
+    use calcard::icalendar::{ICalendarComponentType, ICalendarProperty, ICalendarValue};
+
+    let Some(ical) = item.as_ical() else {
+        return false;
+    };
+
+    let Some(vevent) = ical
+        .components
+        .iter()
+        .find(|component| component.component_type == ICalendarComponentType::VEvent)
+    else {
+        return false;
+    };
+
+    let Some(property) = vevent.property(&ICalendarProperty::Dtstart) else {
+        return false;
+    };
+
+    let date = property.values.iter().find_map(|value| match value {
+        ICalendarValue::PartialDateTime(pdt) => match (pdt.year, pdt.month, pdt.day) {
+            (Some(year), Some(month), Some(day)) => Some(format!("{year:04}{month:02}{day:02}")),
+            _ => None,
+        },
+        _ => None,
+    });
+
+    let Some(date) = date else {
+        return false;
+    };
+
+    if let Some(start) = range.start() {
+        if date.as_str() < &start[..8] {
+            return false;
+        }
+    }
+
+    if let Some(end) = range.end() {
+        if date.as_str() >= &end[..8] {
+            return false;
+        }
+    }
+
+    true
 }

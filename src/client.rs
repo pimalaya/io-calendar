@@ -23,7 +23,7 @@ use thiserror::Error;
 
 use crate::{
     calendar::{Calendar, CalendarDiff},
-    item::CalendarItem,
+    item::{CalendarItem, TimeRange},
 };
 
 /// Errors surfaced by [`CalendarClientStd`].
@@ -112,19 +112,26 @@ impl CalendarClientStd {
 
     /// Lists items inside `calendar_id`. `page` is 1-indexed; pass
     /// `None` to default to page 1. `page_size = None` returns the full
-    /// window.
+    /// window. When `time_range` is set, only VEVENTs overlapping the
+    /// range are returned (server-side for WebDAV, client-side for
+    /// vdir).
     pub fn list_items(
         &mut self,
         calendar_id: &str,
         page: Option<u32>,
         page_size: Option<u32>,
+        time_range: Option<&TimeRange>,
     ) -> Result<Vec<CalendarItem>, CalendarClientStdError> {
         trace!("list items");
         match self {
             #[cfg(feature = "vdir")]
-            Self::Vdir(client) => Ok(client.list_items(calendar_id, page, page_size)?),
+            Self::Vdir(client) => {
+                Ok(client.list_items(calendar_id, page, page_size, time_range)?)
+            }
             #[cfg(feature = "webdav")]
-            Self::Webdav(client) => Ok(client.list_items(calendar_id, page, page_size)?),
+            Self::Webdav(client) => {
+                Ok(client.list_items(calendar_id, page, page_size, time_range)?)
+            }
         }
     }
 
